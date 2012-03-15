@@ -25,4 +25,5 @@ Gem::Specification.new do |s|
 
   # development dependencies
   s.add_development_dependency "rspec"
+  s.add_development_dependency "rdoc"
 end
