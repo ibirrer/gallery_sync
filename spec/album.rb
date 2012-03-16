@@ -103,11 +103,13 @@ module GallerySync
         patch.added.should be_empty
         patch.removed.should be_empty
         patch.changed.should be_empty
+        patch.empty?.should == true
 
         patch1 = @a.diff(@b)
         patch1.added.should be_empty
         patch1.removed.should be_empty
         patch1.changed.should be_empty
+        patch1.empty?.should == true
       end
 
       it "patch should contain photos that were added" do

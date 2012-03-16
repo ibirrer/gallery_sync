@@ -2,6 +2,8 @@ require 'dropbox_sdk'
 require 'aws/s3'
 require 'RMagick'
 require 'benchmark'
+require 'gallery_sync/photo'
+require 'gallery_sync/album'
 
 module GallerySync
   class Gallery
@@ -78,6 +80,7 @@ module GallerySync
     def initialize(name, root_path)
       @root_path = root_path
       @name = name
+      @file_lookup = {}
     end
 
     def load_albums
@@ -87,40 +90,40 @@ module GallerySync
         album = Album.new(File.basename(album_dir))
         metadata_file = File.join(album_dir, "album.yml")
         album.load_metadata_from_yaml(File.open(metadata_file)) if File.exist?(metadata_file)
-        photos = Dir.glob(File.join(album_dir, "*.{png,jpg}")).select { |f| File.file?(f)}.map { |f|
-          FilePhoto.new(album,File.basename(f),f)
+        Dir.glob(File.join(album_dir, "*.{png,jpg}")).select { |f| File.file?(f)}.each { |f|
+          photo = album.add_photo(File.basename(f))
+          @file_lookup[photo] = f
+          #Photo.new(album,File.basename(f),f)
         }
-        if !photos.empty?
+        if !album.photos.empty?
           albums << album
-          album.photos = photos
-          album.album_photo = photos[0]
+          #album.photos = photos
+          #album.album_photo = photos[0]
         end
       }
       albums
     end
 
     def rm_photo photo
-      photo.rm    
+      File.delete(@file_lookup[photo])
     end
 
     def rm_album album_name
       album = self[album_name]
       album.photos.each { |p|
-        p.rm
+        rm_photo p
       }
     end
 
-
-
     def upload_album album
-      Dir.mkdir File.join(@root_path, album.name)
+      Dir.mkdir File.join(@root_path, album.id)
       album.photos.each { |photo|  
         upload_photo(photo) 
       }
     end
 
     def upload_photo(photo)
-      path = File.join(@root_path, photo.album.name, photo.name)
+      path = File.join(@root_path, photo.album.id, photo.id)
       File.open(path,'wb') {|io|io.write(photo.file)}
     end
 
@@ -136,98 +139,9 @@ module GallerySync
     end
   end
 
-  class Album
-    attr_accessor :photos, :album_photo, :metadata
-    attr_reader :name
-
-    def initialize(name)
-      @name = name
-    end
-
-    def metadata()
-      if(@metadata.nil?)
-        @metadata = {'name' => name()}
-      end 
-      @metadata
-    end
-
-    # loads metadata from a yaml string
-    # title, date_from, date_to
-    def load_metadata_from_yaml(file)
-      @metadata = {}
-      @metadata = YAML::load(file)
-    end
-
-    def get_merge_actions(dest_album)
-      r = {}
-      src_album = self
-      src_names = @photos.collect(&:name)
-      dest_names = dest_album.photos.collect(&:name)
-
-      to_add = src_names - dest_names
-      to_delete = dest_names - src_names
-
-      r[:add] = to_add.map { |name| src_album[name]  }
-      r[:delete] = to_delete.map { |name| dest_album[name]  }
-      return r
-    end
-
-    def merge_to(dest_album,dest_gallery)
-      merge_actions = get_merge_actions(dest_album)
-
-      # perform delete
-      merge_actions[:delete].each { |p|
-        dest_gallery.rm_photo p
-      }
-
-      # perform add
-      merge_actions[:add].each { |p|
-        dest_gallery.upload_photo(p)
-      }
-
-      # sync metadata
-      if(self.metadata != dest_album.metadata)
-        dest_gallery.update_album_metadata(dest_album,self.metadata)
-      end 
-    end
-
-    def [](photo_name)
-      r = photos.select { |p| p.name == photo_name }
-      r.empty? ? nil : r.first
-    end
-
-    def to_s
-      @name
-    end
-  end
-
   class SerPhoto < Struct.new(:name, :path, :thumb_url, :medium_url, :full_url)
     def self.value_of(photo)
       SerPhoto.new(photo.name,photo.path,photo.thumb_url,photo.medium_url,photo.full_url)
-    end
-  end
-
-  class Photo
-    attr_reader :album 
-    def initialize(album, name)
-      @album = album
-      @name = name
-    end
-
-    def name
-      @name
-    end
-
-    def path
-      "#{@album.name}/#{@name}"
-    end
-
-    def ==(another_photo)
-      @name == another_photo.name
-    end
-
-    def to_s
-      @name
     end
   end
 

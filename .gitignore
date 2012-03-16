@@ -1,4 +1,5 @@
 *.gem
+*.swp
 .env
 .bundle
 doc

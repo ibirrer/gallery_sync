@@ -1,4 +1,5 @@
 require 'gallery_sync/gallery_sync'
+require 'gallery_sync/album'
 require 'tmpdir'
 
 module GallerySync

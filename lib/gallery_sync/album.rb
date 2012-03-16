@@ -1,5 +1,6 @@
 require 'gallery_sync/photo'
 require 'gallery_sync/album_patch'
+
 module GallerySync
   class Album
     attr_reader :id, :photos
@@ -9,7 +10,7 @@ module GallerySync
       @id = id
       @photos = {}
       @metadata = options.select { |k,v| 
-        [:name,:description,:date_from,:date_to,:rank,:album_photo].include?(k) 
+        [:name,:description,:date_from,:date_to,:order,:album_photo].include?(k) 
       }
     end
 
@@ -21,8 +22,6 @@ module GallerySync
       end
     end
 
-    alias :name :id
-
     def remove_photo(id)
       @photos.delete(id)
     end
@@ -30,9 +29,9 @@ module GallerySync
     def [](photo_id)
       photos[photo_id]
     end
-
-    def album_photo
-      @photos[0]
+    
+    def name
+      @metadata[:name]
     end
 
     # Compares this album with another_album and returns
@@ -89,47 +88,6 @@ module GallerySync
         a.add_photo(v)  
       }
       return a
-    end
-
-    # loads metadata from a yaml string
-    # title, date_from, date_to
-    def load_metadata_from_yaml(file)
-      @metadata = {}
-      @metadata = YAML::load(file)
-    end
-
-
-    def get_merge_actions(dest_album)
-      r = {}
-      src_album = self
-      src_names = @photos.collect(&:name)
-      dest_names = dest_album.photos.collect(&:name)
-
-      to_add = src_names - dest_names
-      to_delete = dest_names - src_names
-
-      r[:add] = to_add.map { |name| src_album[name]  }
-      r[:delete] = to_delete.map { |name| dest_album[name]  }
-      return r
-    end
-
-    def merge_to(dest_album,dest_gallery)
-      merge_actions = get_merge_actions(dest_album)
-
-      # perform delete
-      merge_actions[:delete].each { |p|
-        dest_gallery.rm_photo p
-      }
-
-      # perform add
-      merge_actions[:add].each { |p|
-        dest_gallery.upload_photo(p)
-      }
-
-      # sync metadata
-      if(self.metadata != dest_album.metadata)
-        dest_gallery.update_album_metadata(dest_album,self.metadata)
-      end 
     end
 
     def ==(other)
