@@ -7,8 +7,12 @@ module GallerySync
       @albums = {}
     end
 
-    def add_album(album)
-      @albums[album.id] = album
+    def add_album(id, options = {})
+      @albums[id] = Album.new id, options
+    end
+
+    def remove_album(a_id)
+      @albums.delete a_id
     end
 
     def [](album_id)
@@ -39,12 +43,12 @@ module GallerySync
       # in a and b but with differences in album/photos
       common_ids = a_ids & b_ids
 
-      changed = {}
+      changed = []
       changed_ids = common_ids.select do |id|
         album_a = @albums[id]
         album_b = other_gallery.albums[id]
         patch = album_a.diff(album_b)
-        changed[id] = patch unless patch.empty?
+        changed << patch unless patch.empty?
         #TODO: AlbumPatch should contain diff to new metadata (rank, description, dates)
       end
 
